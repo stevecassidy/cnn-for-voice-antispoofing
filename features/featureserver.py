@@ -12,7 +12,7 @@ import logging
 from config import configinit, config
 
 
-def extract_features(dirname):
+def extract_features(dirname, outdir):
     """
     Extract features from a set of data in DATA_DIR/dirname (*.wav)
     and write features into FEAT_DIR/dirname for future use
@@ -21,8 +21,8 @@ def extract_features(dirname):
     # TODO: more of these settings should be derived from the config file
 
     dd = os.path.join(config('DATA_DIR'), dirname)
-    fd768 = os.path.join(config('FEAT_DIR'), "768", dirname)
-    fd_concat = os.path.join(config('FEAT_DIR'), "concat", dirname)
+    fd768 = os.path.join(config('FEAT_DIR'), "wideband-768", outdir)
+    fd_concat = os.path.join(config('FEAT_DIR'), "narrow-wide", outdir)
 
     if not os.path.exists(fd768):
         os.makedirs(fd768)
@@ -117,7 +117,7 @@ def make_feature_server(dirname, frame_size):
 if __name__ == '__main__':
     
     configinit("config.ini")
-    extract_features("ASVspoof2017_V2_train")
-    extract_features("ASVspoof2017_V2_dev")
-    extract_features("ASVspoof2017_V2_eval")
+    extract_features("ASVspoof2017_V2_train", "train-files")
+    extract_features("ASVspoof2017_V2_dev", "dev-files")
+    extract_features("ASVspoof2017_V2_eval", "eval-files")
 
