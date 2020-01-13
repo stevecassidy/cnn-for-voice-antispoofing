@@ -1,3 +1,5 @@
 h5py
 numpy
-sklearn
+scikit-learn
+pytorch
+pandas

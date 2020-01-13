@@ -6,17 +6,14 @@ from __future__ import print_function
 import argparse
 import os
 import torch
-import torch.nn as nn
-import torch.nn.init as init
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data
 from torch.autograd import Variable
 import shutil
 
+from model import Net
 from read_feats_classV5 import ASVSpoofTestData, ASVSpoofTrainData, ASVSpoofDevData
-
-
 
 # Training settings
 parser = argparse.ArgumentParser(description='ConvNet reduction')
@@ -49,7 +46,7 @@ args.cuda = not args.no_cuda and torch.cuda.is_available()
 model_output_dir = args.output_dir + '/'
 try:
     if not os.path.isdir(model_output_dir):
-        os.mkdir(model_output_dir)
+        os.makedirs(model_output_dir)
 except Exception as e:
     print("Error creating directory")
     print(e)
@@ -76,68 +73,6 @@ dev_dataset = ASVSpoofDevData()
 devdata_loader = torch.utils.data.DataLoader(
     dev_dataset,
     batch_size=args.test_batch_size, shuffle=True, **kwargs)
-
-
-class Net(nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
-        self.pool = nn.MaxPool2d(kernel_size=(2, 2))  # 2x4
-
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3)  # 3x3 - 32
-        init.xavier_normal(self.conv1.weight)
-
-        self.mfm1 = nn.MaxPool3d(kernel_size=(2,1,1), stride=(2,1,1))
-        self.conv2a = nn.Conv2d(16, 32, kernel_size=1)
-        init.xavier_normal(self.conv2a.weight)
-        self.conv2 = nn.Conv2d(16, 48, kernel_size=3)  # 3x3 - 32
-        init.xavier_normal(self.conv2.weight)
-
-        self.conv3a = nn.Conv2d(24, 48, kernel_size=1)
-        init.xavier_normal(self.conv3a.weight)
-        self.conv3 = nn.Conv2d(24, 64, kernel_size=3)  # 3x3 - 32
-        init.xavier_normal(self.conv3.weight)
-        self.conv4a = nn.Conv2d(32, 64, kernel_size=1)  # 3x3 - 32
-        init.xavier_normal(self.conv4a.weight)
-        self.conv4 = nn.Conv2d(32, 32, kernel_size=3)  # 3x3 - 32
-        init.xavier_normal(self.conv4.weight)
-        self.conv5a = nn.Conv2d(16, 32, kernel_size=3)  # 3x3 - 32
-        init.xavier_normal(self.conv5a.weight)
-        self.conv5 = nn.Conv2d(16, 16, kernel_size=3)  # 3x3 - 32
-        init.xavier_normal(self.conv5.weight)
-
-        self.fc1 = nn.Linear(1512, 128)
-
-        self.fc2 = nn.Linear(128, 2)
-        
-    def forward(self, x):
-        # try pooling after relu!
-        x = self.pool(self.mfm1(self.conv1(x)))
-        x = self.mfm1(self.conv2a(x))
-        x = self.pool(self.mfm1(self.conv2(x)))
-        x = self.mfm1(self.conv3a(x))
-        x = self.pool(self.mfm1(self.conv3(x)))
-        x = self.mfm1(self.conv4a(x))
-        x = self.pool(self.mfm1(self.conv4(x)))
-        x = self.mfm1(self.conv5a(x))
-        x = self.pool(self.mfm1(self.conv5(x)))
-        # x = self.pool(self.mfm1(F.dropout2d(self.conv1(x), training=self.training)))
-        # x = self.mfm1(F.dropout2d(self.conv2a(x), training=self.training))
-        # x = self.pool(self.mfm1(F.dropout2d(self.conv2(x), training=self.training)))
-        # x = self.mfm1(F.dropout2d(self.conv3a(x), training=self.training))
-        # x = self.pool(self.mfm1(F.dropout2d(self.conv3(x), training=self.training)))
-        # x = self.mfm1(F.dropout2d(self.conv4a(x), training=self.training))
-        # x = self.pool(self.mfm1(F.dropout2d(self.conv4(x), training=self.training)))
-        # x = self.mfm1(F.dropout2d(self.conv5a(x), training=self.training))
-        # x = self.pool(self.mfm1(F.dropout2d(self.conv5(x), training=self.training)))
-
-        x = x.view(x.size(0), -1)
-
-        x = F.dropout(x, p=0.7, training=self.training)
-        x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=0.7, training=self.training)
-        x = self.fc2(x)
-
-        return F.log_softmax(x)
 
 
 model = Net()
@@ -181,13 +116,13 @@ def train(epoch):
         optimizer.zero_grad()
         output = model(data)
         loss = F.nll_loss(output, target)
-        total_loss += loss.data[0]
+        total_loss += loss.item() # loss.data[0]
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), loss.data[0]))
+                       100. * batch_idx / len(train_loader), loss.item()))   # loss.data[0]))
 
     print("Total loss = %.6f" % (total_loss/len(train_loader.dataset)))
     dev_loss = 0.
@@ -206,7 +141,7 @@ def train(epoch):
                 f.write('%f %s\n' % (scr, 'nontarget'))
             else:
                 f.write('%f %s\n' % (scr, 'target'))
-        dev_loss += F.nll_loss(output, target, size_average=False).data[0]  # sum up batch loss
+        dev_loss += F.nll_loss(output, target, size_average=False).item()  # sum up batch loss
     f.close()
     dev_loss /= len(devdata_loader.dataset)
     print("Dev loss is %.6f" % dev_loss)
@@ -232,7 +167,7 @@ def test():
                 f.write('%f %s\n' % (scr, 'nontarget'))
             else:
                 f.write('%f %s\n' % (scr, 'target'))
-        test_loss += F.nll_loss(output, target, size_average=False).data[0]  # sum up batch loss
+        test_loss += F.nll_loss(output, target, size_average=False).item()  # sum up batch loss
         pred = output.data.max(1, keepdim=True)[1]  # get the index of the max log-probability
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
