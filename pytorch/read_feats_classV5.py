@@ -7,7 +7,6 @@ import os
 import sys
 import math
 import torch
-import pandas as pd
 import numpy as np
 # import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
@@ -22,6 +21,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data
 from torch.autograd import Variable
+
+BASE_DIR = '../data/feat/original-768'
 
 class ASVSpoofTrainData(Dataset):
 
@@ -40,7 +41,7 @@ class ASVSpoofTrainData(Dataset):
         if idx > self.num_obj:
             raise IndexError()
 
-        mat = pickle.load(open('data/768/train-files/'+str(idx)+'.npy', 'rb'))
+        mat = pickle.load(open(BASE_DIR + '/train-files/'+str(idx)+'.npy', 'rb'))
         return (torch.from_numpy(mat).float(), self.classes[idx])
 
 
@@ -59,7 +60,7 @@ class ASVSpoofDevData(Dataset):
         if idx > self.num_obj:
             raise IndexError()
 
-        mat = np.load(open('data/768/dev-files/'+str(idx)+'.npy', 'rb'))
+        mat = np.load(open(BASE_DIR + '/dev-files/'+str(idx)+'.npy', 'rb'))
         return (torch.from_numpy(mat).float(), self.classes[idx])
 
 class ASVSpoofTestData(Dataset):
@@ -99,11 +100,15 @@ class ASVSpoofTestData(Dataset):
             raise IndexError()
         actual_idx = self.indices[idx]
         file_idx = int(math.floor(actual_idx/1000))+1
-        mat = pickle.load(open('data/768/eval-files/'+str(file_idx)+'/'+str(actual_idx)+'.npy', 'rb'))
+        mat = pickle.load(open(BASE_DIR + '/eval-files/'+str(file_idx)+'/'+str(actual_idx)+'.npy', 'rb'))
         return (torch.from_numpy(mat).float(), self.labels[idx])
 
+
+
+
+
 if __name__ == '__main__':
-    d = ASVSpoofTrainData()
+    d = ASVSpoofData('../data/ASVspoof2017/protocol_V2/ASVspoof2017_V2_dev.trl.txt', '../data/feat/narrow-wide/dev-files/')
     dl = DataLoader(d, batch_size=100)
     for x, l in dl:
         print("New batch")
