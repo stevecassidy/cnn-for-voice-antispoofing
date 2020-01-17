@@ -124,14 +124,14 @@ if __name__=='__main__':
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
     train_dataset = ASVSpoofData(os.path.join(data_dir, 'protocol_V2/ASVspoof2017_V2_train.trn.txt'), 
-                                 os.path.join(feat_dir, 'narrow-wide/train-files/'))
+                                 os.path.join(feat_dir, 'train-files/'))
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                             batch_size=config.getint('BATCH_SIZE'), 
                                             shuffle=True, 
                                             **kwargs)
 
     dev_dataset = ASVSpoofData(os.path.join(data_dir, 'protocol_V2/ASVspoof2017_V2_dev.trl.txt'), 
-                               os.path.join(feat_dir, 'narrow-wide/dev-files/'))
+                               os.path.join(feat_dir, 'dev-files/'))
     dev_loader = torch.utils.data.DataLoader(dev_dataset,
                                             batch_size=config.getint('BATCH_SIZE'), 
                                             shuffle=True, 
