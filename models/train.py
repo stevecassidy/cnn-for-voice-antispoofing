@@ -9,48 +9,69 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data
-from torch.autograd import Variable
 import shutil
+import configparser
 
 from models.model import Net
 from features.dataset import ASVSpoofData
 
 
-def train(model, epoch, optimizer, train_loader, dev_loader):
+def train(epochs, train_loader, dev_loader, lr, seed, use_cuda, log_interval, output_dir):
+    """Train the model. Store snapshot models in the output_dir alongside
+    evaluations on the dev set after each epoch
+    """
+
+    model = Net()
+
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+
+    torch.manual_seed(seed)
+
+    if use_cuda:
+        torch.cuda.manual_seed(seed)
+        model.cuda()
+
     model.train()
     total_loss = 0.0
     
-    for batch_idx, (data, target) in enumerate(train_loader):
-        if args.cuda:
-            data, target = data.cuda(), target.cuda()
-        data = data.unsqueeze_(1)
-        
-        optimizer.zero_grad()
-        output = model(data)
-        loss = F.nll_loss(output, target)
-        loss.backward()
-        optimizer.step()
+    for epoch in range(1, epochs):
+        print("EPOCH", epoch)
 
-        total_loss += loss.item()
-        if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                    epoch, batch_idx * len(data), len(train_loader.dataset),
-                    100. * batch_idx / len(train_loader), loss.item()))
+        for batch_idx, (data, target) in enumerate(train_loader):
+            print("\tBATCH", batch_idx)
+            if use_cuda:
+                data, target = data.cuda(), target.cuda()
+            data = data.unsqueeze_(1)
+            
+            optimizer.zero_grad()
+            output = model(data)
+            loss = F.nll_loss(output, target)
+            loss.backward()
+            optimizer.step()
 
-    print("Total loss = %.6f" % (total_loss/len(train_loader.dataset)))
+            total_loss += loss.item()
+            if batch_idx % log_interval == 0:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                        epoch, batch_idx * len(data), len(train_loader.dataset),
+                        100. * batch_idx / len(train_loader), loss.item()))
 
-    test(model, dev_loader, 'dev-eer')
+        print("Total loss = %.6f" % (total_loss/len(train_loader.dataset)))
+
+        test(model, use_cuda, dev_loader, os.path.join(output_dir, 'dev-eer-' + str(epoch)))         
+
+        torch.save(model, os.path.join(output_dir, 'iter' + str(epoch) + '.mdl'))
+
+
+def test(model, use_cuda, test_loader, report_filename):
     
-
-
-def test(model, test_loader, report_filename):
+    
     model.eval()
     test_loss = 0
     correct = 0
     
     with open(report_filename, 'w') as f:
         for data, target in test_loader:
-            if args.cuda:
+            if use_cuda:
                 data, target = data.cuda(), target.cuda()
             data = data.unsqueeze_(1)
             
@@ -78,35 +99,19 @@ def test(model, test_loader, report_filename):
 
 if __name__=='__main__':
 
-    # Training settings
-    parser = argparse.ArgumentParser(description='ConvNet reduction')
-    parser.add_argument('--batch-size', type=int, default=100, metavar='N',
-                        help='input batch size for training (default: 100)')
-    parser.add_argument('--test-batch-size', type=int, default=100, metavar='N',
-                        help='input batch size for testing (default: 100)')
-    parser.add_argument('--epochs', type=int, default=20, metavar='N',
-                        help='number of epochs to train (default: 20)')
-    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
-                        help='learning rate (default: 0.01)')
-    parser.add_argument('--momentum', type=float, default=0.5, metavar='M',
-                        help='SGD momentum (default: 0.5)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='disables CUDA training')
-    parser.add_argument('--seed', type=int, default=1, metavar='S',
-                        help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
-                        help='how many batches to wait before logging training status')
-    parser.add_argument('--output-dir', type=str, default='./', metavar='N',
-                        help='Output directory where models will be stored')
-    parser.add_argument('--train', type=bool, default=True, 
-                        help='Set/unset to toggle training')
-    parser.add_argument('--eval', type=bool, default=True, 
-                        help='Set/unset to toggle evaluation')
 
-    args = parser.parse_args()
-    args.cuda = not args.no_cuda and torch.cuda.is_available()
+    import sys
 
-    model_output_dir = args.output_dir + '/'
+    configfile = sys.argv[1]
+
+    CONFIG = configparser.ConfigParser()
+    CONFIG.read(configfile)
+    config = CONFIG['default']
+
+    model_output_dir = config['MODEL_DIR']
+    data_dir = config['DATA_DIR']
+    feat_dir = config['FEAT_DIR']
+
     try:
         if not os.path.isdir(model_output_dir):
             os.makedirs(model_output_dir)
@@ -114,41 +119,35 @@ if __name__=='__main__':
         print("Error creating model output directory", model_output_dir)
         print(e)
 
-    print('Parameters: ', args.__dict__)
+    use_cuda = config.getboolean('CUDA') and torch.cuda.is_available()
 
-    torch.manual_seed(args.seed)
-    if args.cuda:
-        torch.cuda.manual_seed(args.seed)
+    kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-
-    kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
-    train_dataset = ASVSpoofData('data/ASVspoof2017/protocol_V2/ASVspoof2017_V2_train.trn.txt', 
-                                 'data/feat/narrow-wide/train-files/')
+    train_dataset = ASVSpoofData(os.path.join(data_dir, 'protocol_V2/ASVspoof2017_V2_train.trn.txt'), 
+                                 os.path.join(feat_dir, 'narrow-wide/train-files/'))
     train_loader = torch.utils.data.DataLoader(train_dataset,
-                                            batch_size=args.batch_size, 
+                                            batch_size=config.getint('BATCH_SIZE'), 
                                             shuffle=True, 
                                             **kwargs)
 
-    dev_dataset = ASVSpoofData('data/ASVspoof2017/protocol_V2/ASVspoof2017_V2_dev.trl.txt', 
-                               'data/feat/narrow-wide/dev-files/')
+    dev_dataset = ASVSpoofData(os.path.join(data_dir, 'protocol_V2/ASVspoof2017_V2_dev.trl.txt'), 
+                               os.path.join(feat_dir, 'narrow-wide/dev-files/'))
     dev_loader = torch.utils.data.DataLoader(dev_dataset,
-                                            batch_size=args.batch_size, 
+                                            batch_size=config.getint('BATCH_SIZE'), 
                                             shuffle=True, 
                                             **kwargs)
 
-    model = Net()
-    if args.cuda:
-        model.cuda()
+    model = train(
+                    epochs=config.getint('EPOCHS'), 
+                    train_loader=train_loader, 
+                    dev_loader=dev_loader,
+                    lr=config.getfloat('LEARNING_RATE'), 
+                    seed=config.getfloat('seed', 1),
+                    log_interval=config.getint('LOG_INTERVAL', 10),
+                    use_cuda=use_cuda,
+                    output_dir=model_output_dir
+                )
 
-    optimizer =  optim.Adam(model.parameters(), lr=args.lr)
+    torch.save(model, model_output_dir + 'final.mdl')
 
-    if args.train:
-        for epoch in range(1, args.epochs):
-            train(model, epoch, optimizer, train_loader, dev_loader)
-            torch.save(model, model_output_dir + 'iter' + str(epoch) + '.mdl')
-            shutil.copy('dev-eer', model_output_dir + '/dev-eer-' + str(epoch))
 
-        torch.save(model, model_output_dir + 'final.mdl')
-
-    if args.eval:
-        test()

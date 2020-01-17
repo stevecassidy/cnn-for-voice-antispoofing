@@ -9,20 +9,19 @@ import glob
 import math
 import numpy
 import logging
-from config import configinit, config
+import configparser
 
 
-def extract_features(dirname, outdir):
+def extract_features(config, dirname, outdir):
     """
     Extract features from a set of data in DATA_DIR/dirname (*.wav)
     and write features into FEAT_DIR/dirname for future use
     """
-
     # TODO: more of these settings should be derived from the config file
 
-    dd = os.path.join(config('DATA_DIR'), dirname)
-    fd768 = os.path.join(config('FEAT_DIR'), "wideband-768", outdir)
-    fd_concat = os.path.join(config('FEAT_DIR'), "narrow-wide", outdir)
+    dd = os.path.join(config['DATA_DIR'], dirname)
+    fd768 = os.path.join(config['FEAT_DIR'], "wideband-768", outdir)
+    fd_concat = os.path.join(config['FEAT_DIR'], "narrow-wide", outdir)
 
     if not os.path.exists(fd768):
         os.makedirs(fd768)
@@ -30,7 +29,7 @@ def extract_features(dirname, outdir):
     if not os.path.exists(fd_concat):
         os.makedirs(fd_concat)
 
-    logging.info("Extracting features for data in {} to {} and {}".format(dd, fd768, fd_concat))
+    print("Extracting features for data in {} to {} and {}".format(dd, fd768, fd_concat))
 
     fs768 = make_feature_server(dd, 768)
     fs641 = make_feature_server(dd, 641)
@@ -39,20 +38,19 @@ def extract_features(dirname, outdir):
     for wavfilename in glob.glob(os.path.join(dd, '*.wav')):
         
         basename, _ext = os.path.splitext(os.path.basename(wavfilename))
+        print("Processing {}".format(basename))
 
         feat768, _label = fs768.load(basename)
         feat641, _label = fs641.load(basename)
         feat127, _label = fs127.load(basename)
 
         outname = os.path.join(fd768, basename)
-        logging.info("Writing {}".format(outname))
         numpy.save(outname, normalize(ensure_400(feat768.transpose())))
 
         # combine the 641 and 127 features, 127 will be a bit longer so chop it down
         width = feat641.shape[0]
         feat_combined = numpy.concatenate((feat641, feat127[:width,:]), axis=1)
         outname = os.path.join(fd_concat, basename)
-        print("Writing {}".format(outname))
         numpy.save(outname, normalize(ensure_400(feat_combined.transpose())))
 
 def ensure_400(mat):
@@ -90,8 +88,6 @@ def make_feature_server(dirname, frame_size):
     window_size =  (2* frame_size+1) / sampling_frequency
     shift = 0.008
 
-    fd = os.path.join(config('FEAT_DIR'), dirname)
-
     # make a feature server to compute features over our audio files
     extractor = sidekit.FeaturesExtractor(audio_filename_structure=dirname + "/{}.wav",
                                           sampling_frequency=sampling_frequency,
@@ -116,8 +112,14 @@ def make_feature_server(dirname, frame_size):
 
 if __name__ == '__main__':
     
-    configinit("config.ini")
-    extract_features("ASVspoof2017_V2_train", "train-files")
-    extract_features("ASVspoof2017_V2_dev", "dev-files")
-    extract_features("ASVspoof2017_V2_eval", "eval-files")
+    import sys
+
+    configfile = sys.argv[1]
+
+    CONFIG = configparser.ConfigParser()
+    CONFIG.read(configfile)
+
+    extract_features(CONFIG['default'], "ASVspoof2017_V2_train", "train-files")
+    extract_features(CONFIG['default'], "ASVspoof2017_V2_dev", "dev-files")
+    extract_features(CONFIG['default'], "ASVspoof2017_V2_eval", "eval-files")
 
