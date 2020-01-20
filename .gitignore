@@ -1,2 +1,4 @@
 data/
 s3data/
+testdata/models
+pytorch/model-output/

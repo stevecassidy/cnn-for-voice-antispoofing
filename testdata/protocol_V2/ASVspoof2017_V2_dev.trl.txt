@@ -1,0 +1,9 @@
+D_1000001.wav genuine M0011 S06 - - -
+D_1000002.wav genuine M0011 S08 - - -
+D_1000003.wav genuine M0011 S04 - - -
+D_1000004.wav genuine M0011 S07 - - -
+D_1000005.wav genuine M0011 S10 - - -
+D_1000006.wav genuine M0011 S05 - - -
+D_1000007.wav genuine M0011 S09 - - -
+D_1000008.wav genuine M0011 S03 - - -
+D_1000009.wav genuine M0011 S02 - - -

@@ -16,7 +16,7 @@ from models.model import Net
 from features.dataset import ASVSpoofData
 
 
-def train(epochs, train_loader, dev_loader, lr, seed, use_cuda, log_interval, output_dir):
+def train(epochs, train_loader, dev_loader, lr, seed, log_interval, output_dir):
     """Train the model. Store snapshot models in the output_dir alongside
     evaluations on the dev set after each epoch
     """
@@ -25,22 +25,25 @@ def train(epochs, train_loader, dev_loader, lr, seed, use_cuda, log_interval, ou
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    torch.manual_seed(seed)
+
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda:0" if use_cuda else "cpu")
+    print("Using device: ", device)
 
     if use_cuda:
         torch.cuda.manual_seed(seed)
-        model.cuda()
+    else:
+        torch.manual_seed(seed)
+
+    model.to(device)
 
     model.train()
     total_loss = 0.0
     
     for epoch in range(1, epochs):
-        print("EPOCH", epoch)
-
         for batch_idx, (data, target) in enumerate(train_loader):
-            print("\tBATCH", batch_idx)
             if use_cuda:
-                data, target = data.cuda(), target.cuda()
+                data, target = data.to(device), target.to(device)
             data = data.unsqueeze_(1)
             
             optimizer.zero_grad()
@@ -57,22 +60,28 @@ def train(epochs, train_loader, dev_loader, lr, seed, use_cuda, log_interval, ou
 
         print("Total loss = %.6f" % (total_loss/len(train_loader.dataset)))
 
-        test(model, use_cuda, dev_loader, os.path.join(output_dir, 'dev-eer-' + str(epoch)))         
+        test(model, dev_loader, os.path.join(output_dir, 'dev-eer-' + str(epoch)))         
 
         torch.save(model, os.path.join(output_dir, 'iter' + str(epoch) + '.mdl'))
 
 
-def test(model, use_cuda, test_loader, report_filename):
-    
+def test(model, test_loader, report_filename):
+    """Test the model on a provided dataset
+    Save test output to a `report_filename`.
+    Print a summary of performance to stdout.
+    """
     
     model.eval()
     test_loss = 0
     correct = 0
     
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda:0" if use_cuda else "cpu")
+   
     with open(report_filename, 'w') as f:
         for data, target in test_loader:
             if use_cuda:
-                data, target = data.cuda(), target.cuda()
+                data, target = data.to(device), target.to(device)
             data = data.unsqueeze_(1)
             
             output = model(data)
@@ -85,7 +94,7 @@ def test(model, use_cuda, test_loader, report_filename):
                     f.write('%f %s\n' % (scr, 'nontarget'))
                 else:
                     f.write('%f %s\n' % (scr, 'target'))
-            test_loss += F.nll_loss(output, target, size_average=False).item()  # sum up batch loss
+            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
             pred = output.data.max(1, keepdim=True)[1]  # get the index of the max log-probability
             correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
@@ -93,8 +102,6 @@ def test(model, use_cuda, test_loader, report_filename):
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
-
-
 
 
 if __name__=='__main__':
@@ -144,7 +151,6 @@ if __name__=='__main__':
                     lr=config.getfloat('LEARNING_RATE'), 
                     seed=config.getfloat('seed', 1),
                     log_interval=config.getint('LOG_INTERVAL', 10),
-                    use_cuda=use_cuda,
                     output_dir=model_output_dir
                 )
 
