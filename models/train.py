@@ -85,8 +85,14 @@ def test(model, test_loader, report_filename):
             data = data.unsqueeze_(1)
             
             output = model(data)
-            output_arr = output.data.numpy().reshape((-1, 2))
-            tgt = target.data.numpy()
+            if use_cuda:
+                op = output.cpu()
+                tgt = target.cpu()
+            else:
+                op = output
+                tgt = target
+            output_arr = op.data.numpy().reshape((-1, 2))
+            tgt = tgt.data.numpy()
             for i in range(tgt.shape[0]):
                 itgt = int(tgt[i])
                 scr = - output_arr[i,0] + output_arr[i,1]
