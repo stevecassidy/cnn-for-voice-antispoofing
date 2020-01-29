@@ -49,5 +49,8 @@ class Net(nn.Module):
         x = nn.functional.relu(self.fc1(x))
         x = self.fc2(x)
 
-        return x #nn.functional.log_softmax(x, dim=0)  # Should maybe be 1
+        x = nn.functional.log_softmax(x, dim=1)
+
+        return x
+        
 
