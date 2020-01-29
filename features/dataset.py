@@ -35,7 +35,7 @@ class ASVSpoofData(torch.utils.data.Dataset):
         return (torch.from_numpy(mat).float(), self.labels[idx])
 
 if __name__ == '__main__':
-    d = ASVSpoofData('../data/ASVspoof2017/protocol_V2/ASVspoof2017_V2_dev.trl.txt', '../data/feat/narrow-wide/dev-files/')
+    d = ASVSpoofData('data/ASVspoof2017/protocol_V2/ASVspoof2017_V2_dev.trl.txt', 's3data/narrow-wide/dev-files/')
     dl = torch.utils.data.DataLoader(d, batch_size=100)
     for x, l in dl:
         print("New batch")

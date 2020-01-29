@@ -3,7 +3,8 @@ D_1000002.wav genuine M0011 S08 - - -
 D_1000003.wav genuine M0011 S04 - - -
 D_1000004.wav genuine M0011 S07 - - -
 D_1000005.wav genuine M0011 S10 - - -
-D_1000006.wav genuine M0011 S05 - - -
-D_1000007.wav genuine M0011 S09 - - -
-D_1000008.wav genuine M0011 S03 - - -
-D_1000009.wav genuine M0011 S02 - - -
+D_1001706.wav spoof M0016 S07 E03 P08 R04
+D_1001707.wav spoof M0011 S03 E03 P08 R04
+D_1001708.wav spoof M0011 S02 E03 P08 R04
+D_1001709.wav spoof M0012 S08 E03 P08 R04
+D_1001710.wav spoof M0012 S06 E03 P08 R04

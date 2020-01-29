@@ -22,7 +22,7 @@ import torch.optim as optim
 import torch.utils.data
 from torch.autograd import Variable
 
-BASE_DIR = '../data/feat/original-768'
+BASE_DIR = '../s3data/original-768'
 
 class ASVSpoofTrainData(Dataset):
 
@@ -30,6 +30,8 @@ class ASVSpoofTrainData(Dataset):
         data_fn = 'train_info.lst'
         with open(data_fn, 'rb') as f:
             data = pickle.load(f)
+
+        self.names = data['names']
         self.classes = [data['labels'][k] for k in data['names']]
         self.num_obj = len(self.classes)
         self.classes = torch.from_numpy(np.array(self.classes)).long()
@@ -41,16 +43,31 @@ class ASVSpoofTrainData(Dataset):
         if idx > self.num_obj:
             raise IndexError()
 
+        #print(BASE_DIR + '/train-files/'+str(idx)+'.npy', self.names[idx])
         mat = pickle.load(open(BASE_DIR + '/train-files/'+str(idx)+'.npy', 'rb'))
         return (torch.from_numpy(mat).float(), self.classes[idx])
+
+    def rewrite(self, targetdir):
+        """Rewrite all files as new style numpy dumps in targetdir using file basenames"""
+
+        os.makedirs(targetdir, exist_ok=True)
+
+        for idx in range(len(self.names)):
+            data = pickle.load(open(BASE_DIR + '/train-files/'+str(idx)+'.npy', 'rb'))
+            name = self.names[idx]
+            basename, _ext = os.path.splitext(name)
+            outfile = os.path.join(targetdir, basename + '.npy')
+            np.save(outfile, data)
+            print("Wrote", outfile)
 
 
 class ASVSpoofDevData(Dataset):
 
     def __init__(self, transform=None):
+
         classes = dict([ln.strip().split() for ln in open('dev-keys')])
-        files = [ln.strip().split('/')[-1].split('.')[0] for ln in open('filelist_dev')]
-        self.classes = torch.from_numpy(np.array([0 if classes[k]=="spoof" else 1 for k in files])).long()
+        self.names = [ln.strip().split('/')[-1].split('.')[0] for ln in open('filelist_dev')]
+        self.classes = torch.from_numpy(np.array([0 if classes[k]=="spoof" else 1 for k in self.names])).long()
         self.num_obj = len(self.classes)
 
     def __len__(self):
@@ -62,6 +79,20 @@ class ASVSpoofDevData(Dataset):
 
         mat = np.load(open(BASE_DIR + '/dev-files/'+str(idx)+'.npy', 'rb'))
         return (torch.from_numpy(mat).float(), self.classes[idx])
+
+
+    def rewrite(self, targetdir):
+        """Rewrite all files as new style numpy dumps in targetdir using file basenames"""
+
+        os.makedirs(targetdir, exist_ok=True)
+
+        for idx in range(len(self.names)):
+            data = pickle.load(open(BASE_DIR + '/train-files/'+str(idx)+'.npy', 'rb'))
+            name = self.names[idx]
+            basename, _ext = os.path.splitext(name)
+            outfile = os.path.join(targetdir, basename + '.npy')
+            np.save(outfile, data)
+            print("Wrote", outfile)
 
 class ASVSpoofTestData(Dataset):
     def __init__(self, transform=None):
@@ -104,12 +135,26 @@ class ASVSpoofTestData(Dataset):
         return (torch.from_numpy(mat).float(), self.labels[idx])
 
 
+    def rewrite(self, targetdir):
+        """Rewrite all files as new style numpy dumps in targetdir using file basenames"""
+
+        os.makedirs(targetdir, exist_ok=True)
+
+        for idx in range(len(self.fnames)):
+            data = pickle.load(open(BASE_DIR + '/train-files/'+str(idx)+'.npy', 'rb'))
+            name = self.fnames[idx]
+            basename, _ext = os.path.splitext(name)
+            outfile = os.path.join(targetdir, basename + '.npy')
+            np.save(outfile, data)
+            print("Wrote", outfile)
+
 
 
 
 if __name__ == '__main__':
-    d = ASVSpoofData('../data/ASVspoof2017/protocol_V2/ASVspoof2017_V2_dev.trl.txt', '../data/feat/narrow-wide/dev-files/')
-    dl = DataLoader(d, batch_size=100)
-    for x, l in dl:
-        print("New batch")
+    d = ASVSpoofDevData()
+    d.rewrite("../s3data/original-rewrite/dev-files/")
+    # dl = DataLoader(d, batch_size=100)
+    # for x, l in dl:
+    #     print("New batch")
 

@@ -14,6 +14,29 @@ import configparser
 
 from models.model import Net
 from features.dataset import ASVSpoofData
+from models.score import eer
+
+def make_dataloader(speaker_list_file, dirname, batch_size, kwargs={}):
+    """Make and return a data loader object"""
+
+    dataset = ASVSpoofData(speaker_list_file, dirname)
+
+    loader = torch.utils.data.DataLoader(dataset,
+                                        batch_size=batch_size, 
+                                        shuffle=True, **kwargs)
+
+    return loader
+
+
+def measure_size(model):
+    """Measure the number of parameters in the model"""
+
+    print('Conv1:', model.conv1.weight.size())
+    print('Conv2:', model.conv2.weight.size())
+    print('Conv3:', model.conv3.weight.size())
+    print('Fc1:', model.fc1.weight.size())
+    print('Fc2:', model.fc2.weight.size())
+    return sum(p.numel() for p in model.parameters())
 
 
 def train(epochs, train_loader, dev_loader, lr, seed, log_interval, output_dir):
@@ -25,6 +48,7 @@ def train(epochs, train_loader, dev_loader, lr, seed, log_interval, output_dir):
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
+    measure_size(model)
 
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_cuda else "cpu")
@@ -36,11 +60,11 @@ def train(epochs, train_loader, dev_loader, lr, seed, log_interval, output_dir):
         torch.manual_seed(seed)
 
     model.to(device)
-
-    model.train()
-    total_loss = 0.0
     
     for epoch in range(1, epochs):
+
+        model.train()
+        total_loss = 0.0
         for batch_idx, (data, target) in enumerate(train_loader):
             if use_cuda:
                 data, target = data.to(device), target.to(device)
@@ -49,10 +73,10 @@ def train(epochs, train_loader, dev_loader, lr, seed, log_interval, output_dir):
             optimizer.zero_grad()
             output = model(data)
             loss = F.nll_loss(output, target)
+            total_loss += loss.item()
             loss.backward()
             optimizer.step()
 
-            total_loss += loss.item()
             if batch_idx % log_interval == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                         epoch, batch_idx * len(data), len(train_loader.dataset),
@@ -74,10 +98,14 @@ def test(model, test_loader, report_filename):
     model.eval()
     test_loss = 0
     correct = 0
+    scores = []
+    targets = []
+    
     
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_cuda else "cpu")
    
+
     with open(report_filename, 'w') as f:
         for data, target in test_loader:
             if use_cuda:
@@ -96,18 +124,22 @@ def test(model, test_loader, report_filename):
             for i in range(tgt.shape[0]):
                 itgt = int(tgt[i])
                 scr = - output_arr[i,0] + output_arr[i,1]
-                if itgt == 0:
-                    f.write('%f %s\n' % (scr, 'nontarget'))
-                else:
-                    f.write('%f %s\n' % (scr, 'target'))
+                t = "nontarget" if itgt == 0 else "target"
+                f.write('%f %s\n' % (scr, t))
+                scores.append(scr)
+                targets.append(t)
+
             test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
             pred = output.data.max(1, keepdim=True)[1]  # get the index of the max log-probability
             correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
+    test_eer = eer(targets, scores)
+
     test_loss /= len(test_loader.dataset)
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%), EER: {}%\n'.format(
         test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+        100. * correct / len(test_loader.dataset),
+        test_eer*100))
 
 
 if __name__=='__main__':
@@ -136,19 +168,13 @@ if __name__=='__main__':
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-    train_dataset = ASVSpoofData(os.path.join(data_dir, 'protocol_V2/ASVspoof2017_V2_train.trn.txt'), 
-                                 os.path.join(feat_dir, 'train-files/'))
-    train_loader = torch.utils.data.DataLoader(train_dataset,
-                                            batch_size=config.getint('BATCH_SIZE'), 
-                                            shuffle=True, 
-                                            **kwargs)
+    train_loader = make_dataloader(os.path.join(data_dir, 'protocol_V2/ASVspoof2017_V2_train.trn.txt'), 
+                                   os.path.join(feat_dir, 'train-files/'),
+                                   config.getint('BATCH_SIZE'), kwargs)
 
-    dev_dataset = ASVSpoofData(os.path.join(data_dir, 'protocol_V2/ASVspoof2017_V2_dev.trl.txt'), 
-                               os.path.join(feat_dir, 'dev-files/'))
-    dev_loader = torch.utils.data.DataLoader(dev_dataset,
-                                            batch_size=config.getint('BATCH_SIZE'), 
-                                            shuffle=True, 
-                                            **kwargs)
+    dev_loader = make_dataloader(os.path.join(data_dir, 'protocol_V2/ASVspoof2017_V2_dev.trl.txt'), 
+                                 os.path.join(feat_dir, 'dev-files/'),
+                                 config.getint('BATCH_SIZE'), kwargs)
 
     model = train(
                     epochs=config.getint('EPOCHS'), 
