@@ -131,9 +131,20 @@ def train(epoch):
     for data, devtarget in devdata_loader:
         data = data.unsqueeze_(1)
         data, target = Variable(data), Variable(devtarget)
+        if args.cuda:
+            data, target = data.cuda(), target.cuda()
         output = model(data)
-        output_arr = output.data.numpy().reshape((-1, 2))
-        tgt = target.data.numpy()
+    
+        if use_cuda:
+            op = output.cpu()
+            tgt = target.cpu()
+        else:
+            op = output
+            tgt = target
+
+        output_arr = op.data.numpy().reshape((-1, 2))
+        tgt = tgt.data.numpy()
+        
         for i in range(tgt.shape[0]):
             itgt = int(tgt[i])
             scr = - output_arr[i,0] + output_arr[i,1]
