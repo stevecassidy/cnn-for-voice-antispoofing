@@ -60,5 +60,5 @@ class Net(nn.Module):
         #x = nn.functional.dropout(x, p=0.7, training=self.training)
         x = self.fc2(x)
 
-        return x #nn.functional.log_softmax(x, dim=0)  # Should maybe be 1
+        return nn.functional.log_softmax(x, dim=1) 
 
