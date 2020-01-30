@@ -144,7 +144,7 @@ def train(epoch):
 
         output_arr = op.data.numpy().reshape((-1, 2))
         tgt = tgt.data.numpy()
-
+        
         for i in range(tgt.shape[0]):
             itgt = int(tgt[i])
             scr = - output_arr[i,0] + output_arr[i,1]

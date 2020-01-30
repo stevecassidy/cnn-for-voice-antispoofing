@@ -55,9 +55,9 @@ class Net(nn.Module):
 
         x = x.view(x.size(0), -1)
 
-        #x = nn.functional.dropout(x, p=0.7, training=self.training)
+        x = nn.functional.dropout(x, p=0.7, training=self.training)
         x = nn.functional.relu(self.fc1(x))
-        #x = nn.functional.dropout(x, p=0.7, training=self.training)
+        x = nn.functional.dropout(x, p=0.7, training=self.training)
         x = self.fc2(x)
 
         return nn.functional.log_softmax(x, dim=1) 
