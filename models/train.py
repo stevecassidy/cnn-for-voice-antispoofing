@@ -59,6 +59,10 @@ def train(epochs, train_loader, dev_loader, lr, seed, log_interval, output_dir):
     else:
         torch.manual_seed(seed)
 
+    #torch.backends.cudnn.benchmark = False
+    #torch.backends.cudnn.deterministic = True
+
+
     model.to(device)
     
     for epoch in range(1, epochs):

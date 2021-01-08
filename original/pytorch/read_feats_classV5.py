@@ -22,7 +22,7 @@ import torch.optim as optim
 import torch.utils.data
 from torch.autograd import Variable
 
-BASE_DIR = '../s3data/original-768'
+BASE_DIR = '../../s3data/original-768'
 
 class ASVSpoofTrainData(Dataset):
 
