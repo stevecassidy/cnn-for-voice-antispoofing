@@ -3,3 +3,4 @@ s3data/
 testdata/models
 original/pytorch/model-output/
 gadi
+.vscode
